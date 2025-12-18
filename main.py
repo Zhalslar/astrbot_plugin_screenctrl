@@ -1,25 +1,19 @@
 import asyncio
-from datetime import datetime, timedelta
 import time
+from datetime import datetime, timedelta
+
+import pyautogui
+
 from astrbot.api.event import filter
-from astrbot.api.star import Context, Star, StarTools, register
+from astrbot.api.star import Context, Star, StarTools
 from astrbot.core import AstrBotConfig
 from astrbot.core.message.components import Poke
 from astrbot.core.platform import AstrMessageEvent
-import pyautogui
-
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
     AiocqhttpMessageEvent,
 )
 
 
-@register(
-    "astrbot_plugin_screenctrl",
-    "Zhalslar",
-    "屏幕控制插件，支持截屏、点击、按键等",
-    "v1.0.3",
-    "https://github.com/Zhalslar/astrbot_plugin_screenctrl",
-)
 class ScreenshotPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -36,13 +30,13 @@ class ScreenshotPlugin(Star):
         await asyncio.to_thread(screenshot.save, save_path)
         return str(save_path)
 
-    @filter.command("截屏")
+    @filter.command("截屏", alias={"截图"})
     async def on_capture(self, event: AstrMessageEvent):
         if not event.is_admin() and self.conf["only_admin"]:
             return
         yield event.image_result(await self._capture())
 
-    @filter.command("连续截屏")
+    @filter.command("连续截屏", alias={"连续截图"})
     async def on_continuous_capture(
         self, event: AstrMessageEvent, count: int = 3, interval: int = 5
     ):
@@ -104,7 +98,7 @@ class ScreenshotPlugin(Star):
 
         yield event.image_result(await self._capture())
 
-    @filter.command("定时截屏")
+    @filter.command("定时截屏", alias={"定时截图"})
     async def on_schedule_capture(self, event: AstrMessageEvent):
         """定时截屏: /定时截屏 HH:MM[:SS]"""
         if not event.is_admin() and self.conf["only_admin"]:

@@ -15,6 +15,11 @@
         "description": "戳一戳冷却时间",
         "type": "int",
         "hint": "按群聊分CD, 群内CD共享",
+        "slider": {
+            "min": 0,
+            "max": 10,
+            "step": 1
+        },
         "default": 2
     }
 }
