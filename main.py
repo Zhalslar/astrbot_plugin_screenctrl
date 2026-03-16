@@ -1,7 +1,10 @@
 import asyncio
+import base64
 import time
 from datetime import datetime, timedelta
+from pathlib import Path
 
+import mcp.types
 import pyautogui
 
 from astrbot.api.event import filter
@@ -19,9 +22,8 @@ class ScreenshotPlugin(Star):
         super().__init__(context)
         self.conf = config
         self.plugin_data_dir = StarTools.get_data_dir("astrbot_plugin_screenctrl")
-        self.screen_width, self.screen_height = pyautogui.size()
-        self.last_trigger_time: dict = {}
-        self.tasks: dict[int, asyncio.Task] = {}  # 任务 ID -> Task
+        self.last_trigger_time: dict[int, float] = {}
+        self.tasks: dict[int, asyncio.Task] = {}
 
     async def _capture(self) -> str:
         save_name = datetime.now().strftime("screenshot_%Y%m%d_%H%M%S.png")
@@ -30,38 +32,37 @@ class ScreenshotPlugin(Star):
         await asyncio.to_thread(screenshot.save, save_path)
         return str(save_path)
 
-    @filter.command("截屏", alias={"截图"})
+    @filter.command("截图", alias={"截屏"})
     async def on_capture(self, event: AstrMessageEvent):
         if not event.is_admin() and self.conf["only_admin"]:
             return
         yield event.image_result(await self._capture())
 
-    @filter.command("连续截屏", alias={"连续截图"})
+    @filter.command("连续截图", alias={"连续截屏"})
     async def on_continuous_capture(
         self, event: AstrMessageEvent, count: int = 3, interval: int = 5
     ):
-        """连续截屏 <次数> <间隔秒>"""
+        """连续截图 <次数> <间隔秒数>"""
         if not event.is_admin() and self.conf["only_admin"]:
             return
+
         count = max(1, min(count, 10))
         interval = max(1, min(interval, 3600))
-
         task_id = len(self.tasks) + 1
 
-        yield event.plain_result(f"连续截屏#{task_id}(共{count}次, 间隔{interval}秒):")
+        yield event.plain_result(
+            f"连续截图任务 #{task_id} 已创建，共 {count} 次，间隔 {interval} 秒。"
+        )
 
         async def task():
             try:
-                for i in range(count):
-                    img_path = await self._capture()
-                    await event.send(event.image_result(img_path))
-                    if i < count - 1:
+                for index in range(count):
+                    image_path = await self._capture()
+                    await event.send(event.image_result(image_path))
+                    if index < count - 1:
                         await asyncio.sleep(interval)
             except asyncio.CancelledError:
-                await event.send(
-                    event.plain_result(f"连续截屏任务 #{task_id} 已被取消")
-                )
-                return
+                await event.send(event.plain_result(f"连续截图任务 #{task_id} 已取消"))
             finally:
                 self.tasks.pop(task_id, None)
 
@@ -69,15 +70,15 @@ class ScreenshotPlugin(Star):
 
     @filter.event_message_type(filter.EventMessageType.ALL, priority=1)
     async def on_poke(self, event: AiocqhttpMessageEvent):
-        """戳一戳截屏"""
+        """戳一戳截图"""
         if (
             not self.conf["poke_screenshot"]
             or not event.is_admin()
             and self.conf["only_admin"]
         ):
             return
-        raw_message = getattr(event.message_obj, "raw_message", None)
 
+        raw_message = getattr(event.message_obj, "raw_message", None)
         if (
             not raw_message
             or not event.message_obj.message
@@ -85,27 +86,27 @@ class ScreenshotPlugin(Star):
         ):
             return
 
-        # 过滤与自身无关的戳
         if raw_message.get("target_id") != raw_message.get("self_id"):
             return
-        group_id: int = raw_message.get("group_id", 0)
-        # 冷却机制(防止连戳)
+
+        group_id = int(raw_message.get("group_id", 0))
         current_time = time.monotonic()
-        last_time = self.last_trigger_time.get(group_id, 0)
+        last_time = self.last_trigger_time.get(group_id, 0.0)
         if current_time - last_time < self.conf["poke_cd"]:
             return
         self.last_trigger_time[group_id] = current_time
 
         yield event.image_result(await self._capture())
 
-    @filter.command("定时截屏", alias={"定时截图"})
+    @filter.command("定时截图", alias={"定时截屏"})
     async def on_schedule_capture(self, event: AstrMessageEvent):
-        """定时截屏: /定时截屏 HH:MM[:SS]"""
+        """定时截图: /定时截图 HH:MM[:SS]"""
         if not event.is_admin() and self.conf["only_admin"]:
             return
+
         parts = event.message_str.split()
         if len(parts) < 2:
-            yield event.plain_result("用法: /定时截屏 HH:MM[:SS]")
+            yield event.plain_result("用法: /定时截图 HH:MM[:SS]")
             return
 
         target_time = None
@@ -126,27 +127,46 @@ class ScreenshotPlugin(Star):
             target_dt += timedelta(days=1)
 
         delay = (target_dt - now).total_seconds()
-        yield event.plain_result(f"已设置定时截屏: {target_dt.strftime('%H:%M:%S')}")
-        # 分配任务 ID
         task_id = len(self.tasks) + 1
+        yield event.plain_result(
+            f"定时截图任务 #{task_id} 已设置，将在 {target_dt.strftime('%H:%M:%S')} 执行。"
+        )
 
         async def task():
             try:
                 await asyncio.sleep(delay)
-                img_path = await self._capture()
-                await event.send(event.image_result(img_path))
+                image_path = await self._capture()
+                await event.send(event.image_result(image_path))
             except asyncio.CancelledError:
-                await event.send(
-                    event.plain_result(f"定时截屏任务 #{task_id} 已被取消")
-                )
-                return
+                await event.send(event.plain_result(f"定时截图任务 #{task_id} 已取消"))
             finally:
                 self.tasks.pop(task_id, None)
 
         self.tasks[task_id] = asyncio.create_task(task())
 
+    @filter.llm_tool() # type: ignore
+    async def get_current_screen(self, event: AstrMessageEvent):
+        """查看电脑屏幕内容，即获取当前屏幕截图来判断电脑上正在做什么"""
+        if not event.is_admin() and self.conf["only_admin"]:
+            return "当前会话无权调用截图工具。"
+
+        try:
+            image_path = await self._capture()
+            image_bytes = await asyncio.to_thread(Path(image_path).read_bytes)
+            image_base64 = base64.b64encode(image_bytes).decode("utf-8")
+            return mcp.types.CallToolResult(
+                content=[
+                    mcp.types.ImageContent(
+                        type="image",
+                        data=image_base64,
+                        mimeType="image/png",
+                    )
+                ]
+            )
+        except Exception as exc:
+            return f"截图失败: {exc}"
+
     async def terminate(self):
-        """插件卸载时清理所有未完成的定时任务"""
         for task in list(self.tasks.values()):
             task.cancel()
         self.tasks.clear()
