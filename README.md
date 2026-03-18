@@ -1,5 +1,4 @@
 
-
 <div align="center">
 
 ![:name](https://count.getloli.com/@astrbot_plugin_screenctrl?name=astrbot_plugin_screenctrl&theme=minecraft&padding=6&offset=0&align=top&scale=1&pixelated=1&darkmode=auto)
@@ -17,7 +16,7 @@ _✨ [astrbot](https://github.com/AstrBotDevs/AstrBot) 截屏插件 ✨_
 
 ## 🤝 介绍
 
-支持用命令截屏、连续截屏、定时截屏、戳一戳截屏
+支持用命令截屏、连续截屏、定时截屏、戳一戳截屏。 注意本本插件需要桌面环境才能使用，无桌面环境的服务器无法使用！
 
 ## 📦 安装
 
