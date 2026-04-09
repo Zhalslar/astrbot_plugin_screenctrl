@@ -6,6 +6,7 @@ from pathlib import Path
 
 import mcp.types
 
+from astrbot.api import logger
 from astrbot.api.event import filter
 from astrbot.api.star import Context, Star
 from astrbot.core import AstrBotConfig
@@ -36,6 +37,7 @@ class ScreenshotPlugin(Star):
             path = await self.service.capture()
             return [Image.fromFileSystem(path)]
         except Exception as exc:
+            logger.error(exc)
             return [Plain(f"截图失败: {exc}")]
 
     @filter.command("截图", alias={"截屏"})
@@ -43,7 +45,6 @@ class ScreenshotPlugin(Star):
         if not event.is_admin() and self.conf["only_admin"]:
             return
         yield event.chain_result(await self._capture())
-
 
     @filter.command("连续截图", alias={"连续截屏"})
     async def on_continuous_capture(
@@ -102,7 +103,6 @@ class ScreenshotPlugin(Star):
             return
         self.last_trigger_time[group_id] = current_time
         yield event.chain_result(await self._capture())
-
 
     @filter.command("定时截图", alias={"定时截屏"})
     async def on_schedule_capture(self, event: AstrMessageEvent):
