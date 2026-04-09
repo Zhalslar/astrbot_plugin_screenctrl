@@ -2,6 +2,6 @@ name: astrbot_plugin_screenctrl
 display_name: 截屏插件
 desc: 支持用命令截屏、连续截屏、定时截屏、戳一戳截屏
 help: 略
-version: v1.1.1
+version: v1.1.2
 author: Zhalslar
 repo: https://github.com/Zhalslar/astrbot_plugin_screenctrl
