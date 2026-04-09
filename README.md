@@ -63,7 +63,7 @@ pip install pyautogui
 
 ### 示例图
 
-![61e11f66fcb27356ac8c5cc0d3cfd82](https://github.com/user-attachments/assets/b00c2c1b-9c97-4d38-b46f-a10fed0d0bd3)
+<img width="1240" height="404" alt="tmp3A57" src="https://github.com/user-attachments/assets/649ec5ad-ed5a-4bbd-b4b8-7b659029d412" />
 
 ## ⌨️ 配置
 
