@@ -5,7 +5,7 @@
 
 # astrbot_plugin_screenctrl
 
-_✨ [astrbot](https://github.com/AstrBotDevs/AstrBot) 截屏插件 ✨_  
+_✨ 截屏插件 ✨_  
 
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
@@ -18,29 +18,48 @@ _✨ [astrbot](https://github.com/AstrBotDevs/AstrBot) 截屏插件 ✨_
 
 支持用命令截屏、连续截屏、定时截屏、戳一戳截屏。 注意本插件需要桌面环境才能使用，无桌面环境的服务器无法使用！
 
+---
+
 ## 📦 安装
 
-- 直接在astrbot的插件市场搜索astrbot_plugin_screenctrl，点击安装，等待完成即可
+在 astrbot 的插件市场搜索 astrbot_plugin_screenctrl，点击安装即可。
 
-- 也可以克隆源码到插件文件夹：
+安装完成后，根据环境补充依赖：
+
+Python 依赖（一般已自动安装）
 
 ```bash
-# 克隆仓库到插件目录
-cd /AstrBot/data/plugins
-git clone https://github.com/Zhalslar/astrbot_plugin_screenctrl
-
-# 控制台重启AstrBot
+pip install mss Pillow
 ```
+
+Linux 桌面环境（否则可能截图失败）
+
+```bash
+sudo apt install scrot   # X11
+sudo apt install grim    # Wayland
+```
+
+可选（增强兼容）
+
+```bash
+pip install pyautogui
+```
+
+注意：必须有桌面环境（无 GUI 服务器无法使用）
+
+---
 
 ## ⌨️ 使用说明
 
 ### 命令表
 
-|     命令      |                    说明                    |
-|:-------------:|:-----------------------------------------------:|
-| 截屏   | 对当前电脑屏幕进行截屏  |
-| （自然语言表达截屏）  |  调用LLM工具对当前电脑屏幕进行截屏     |
-| （戳一戳）  |  触发截屏，该功能需在配置里打开     |
+|     命令      |                说明                |
+|:-------------:|:----------------------------------:|
+| 截图 / 截屏   | 对当前电脑屏幕进行截图            |
+| 连续截图      | 连续截图（次数 间隔秒）           |
+| 定时截图      | 在指定时间执行截图                |
+| （戳一戳）    | 触发截图（需在配置中开启）        |
+
 
 ### 示例图
 
@@ -56,6 +75,33 @@ git clone https://github.com/Zhalslar/astrbot_plugin_screenctrl
 - 🐛 提交 Issue 报告问题
 - 💡 提出新功能建议
 - 🔧 提交 Pull Request 改进代码
+
+---
+
+### ⚠️ 常见问题
+
+1️⃣ 截图失败 / 无法使用截图功能
+
+请检查：
+
+* 是否有桌面环境（无 GUI 的服务器无法使用）
+* 是否设置 DISPLAY（Linux）
+
+echo $DISPLAY
+
+如果为空，可以尝试：
+
+export DISPLAY=:0
+export XAUTHORITY=~/.Xauthority
+
+2️⃣ 在 systemd / 后台运行无法截图
+
+请在 service 配置中添加：
+
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=/home/你的用户名/.Xauthority
+
+---
 
 ## 📌 注意事项
 

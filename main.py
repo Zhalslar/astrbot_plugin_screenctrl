@@ -1,51 +1,50 @@
 import asyncio
 import base64
-import importlib
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
 import mcp.types
 
+from astrbot.api import logger
 from astrbot.api.event import filter
-from astrbot.api.star import Context, Star, StarTools
+from astrbot.api.star import Context, Star
 from astrbot.core import AstrBotConfig
-from astrbot.core.message.components import Poke
+from astrbot.core.message.components import BaseMessageComponent, Image, Plain, Poke
 from astrbot.core.platform import AstrMessageEvent
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
     AiocqhttpMessageEvent,
 )
+from astrbot.core.utils.astrbot_path import get_astrbot_temp_path
+
+from .screenshot_service import ScreenshotService
 
 
 class ScreenshotPlugin(Star):
+    _plugin_name = "astrbot_plugin_screenctrl"
+
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
         self.conf = config
-        self.plugin_data_dir = StarTools.get_data_dir("astrbot_plugin_screenctrl")
+        self.temp_dir = Path(get_astrbot_temp_path()) / self._plugin_name
+        self.service = ScreenshotService(self.temp_dir)
+
         self.last_trigger_time: dict[int, float] = {}
         self.tasks: dict[int, asyncio.Task] = {}
-        self._pyautogui = None
 
-    async def _capture(self) -> str:
+    async def _capture(self) -> list[BaseMessageComponent]:
         try:
-            if self._pyautogui is None:
-                self._pyautogui = importlib.import_module("pyautogui")
-            save_name = datetime.now().strftime("screenshot_%Y%m%d_%H%M%S.png")
-            save_path = self.plugin_data_dir / save_name
-            screenshot = await asyncio.to_thread(self._pyautogui.screenshot)
-            await asyncio.to_thread(screenshot.save, save_path)
-            return str(save_path)
+            path = await self.service.capture()
+            return [Image.fromFileSystem(path)]
         except Exception as exc:
-            raise RuntimeError("当前环境无法使用截图功能，请确认桌面环境可用") from exc
+            logger.error(exc)
+            return [Plain(f"截图失败: {exc}")]
 
     @filter.command("截图", alias={"截屏"})
     async def on_capture(self, event: AstrMessageEvent):
         if not event.is_admin() and self.conf["only_admin"]:
             return
-        try:
-            yield event.image_result(await self._capture())
-        except Exception as exc:
-            yield event.plain_result(f"截图失败: {exc}")
+        yield event.chain_result(await self._capture())
 
     @filter.command("连续截图", alias={"连续截屏"})
     async def on_continuous_capture(
@@ -66,11 +65,7 @@ class ScreenshotPlugin(Star):
         async def task():
             try:
                 for index in range(count):
-                    try:
-                        await event.send(event.image_result(await self._capture()))
-                    except Exception as exc:
-                        await event.send(event.plain_result(f"截图失败: {exc}"))
-                        return
+                    await event.send(event.chain_result(await self._capture()))
                     if index < count - 1:
                         await asyncio.sleep(interval)
             except asyncio.CancelledError:
@@ -107,11 +102,7 @@ class ScreenshotPlugin(Star):
         if current_time - last_time < self.conf["poke_cd"]:
             return
         self.last_trigger_time[group_id] = current_time
-
-        try:
-            yield event.image_result(await self._capture())
-        except Exception as exc:
-            yield event.plain_result(f"截图失败: {exc}")
+        yield event.chain_result(await self._capture())
 
     @filter.command("定时截图", alias={"定时截屏"})
     async def on_schedule_capture(self, event: AstrMessageEvent):
@@ -150,10 +141,7 @@ class ScreenshotPlugin(Star):
         async def task():
             try:
                 await asyncio.sleep(delay)
-                try:
-                    await event.send(event.image_result(await self._capture()))
-                except Exception as exc:
-                    await event.send(event.plain_result(f"截图失败: {exc}"))
+                await event.send(event.chain_result(await self._capture()))
             except asyncio.CancelledError:
                 await event.send(event.plain_result(f"定时截图任务 #{task_id} 已取消"))
             finally:
@@ -161,14 +149,13 @@ class ScreenshotPlugin(Star):
 
         self.tasks[task_id] = asyncio.create_task(task())
 
-    @filter.llm_tool() # type: ignore
+    @filter.llm_tool()  # type: ignore
     async def get_current_screen(self, event: AstrMessageEvent):
         """查看电脑屏幕内容，即获取当前屏幕截图来判断电脑上正在做什么"""
         if not event.is_admin() and self.conf["only_admin"]:
-            return "当前会话无权调用截图工具。"
-
+            return "该用户无权调用截图工具。"
         try:
-            image_path = await self._capture()
+            image_path = await self.service.capture()
             image_bytes = await asyncio.to_thread(Path(image_path).read_bytes)
             image_base64 = base64.b64encode(image_bytes).decode("utf-8")
             return mcp.types.CallToolResult(
