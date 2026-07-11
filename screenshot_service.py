@@ -3,16 +3,19 @@ import importlib
 from datetime import datetime
 from pathlib import Path
 
+from astrbot.api import logger
+
 
 class ScreenshotService:
     """
-    截图服务（多后端自适应）
+    Screenshot service with automatic backend fallback.
 
-    优先级：
+    Backend priority:
     1. mss
     2. PIL.ImageGrab
     3. pyautogui
-    4. scrot / grim
+    4. scrot
+    5. grim
     """
 
     def __init__(self, temp_dir: Path):
@@ -25,7 +28,7 @@ class ScreenshotService:
 
     async def capture(self) -> str:
         """
-        执行截图并返回文件路径
+        Capture the screen and return the saved file path.
         """
         save_name = datetime.now().strftime("screenshot_%Y%m%d_%H%M%S.png")
         save_path = self.temp_dir / save_name
@@ -33,7 +36,8 @@ class ScreenshotService:
             self._capture_mss,
             self._capture_pil,
             self._capture_pyautogui,
-            self._capture_system,
+            self._capture_scrot,
+            self._capture_grim,
         ):
             try:
                 result = await backend(save_path)
@@ -42,11 +46,12 @@ class ScreenshotService:
             except Exception:
                 continue
         raise RuntimeError(
-            "截图失败：无可用截图后端，请检查 DISPLAY / Wayland / 依赖（mss/scrot/grim）"
+            "Screenshot failed: no available backend. Check the desktop session "
+            "and screenshot dependencies (mss/scrot/grim)."
         )
 
     # ====================
-    # 各后端实现
+    # Backend implementations
     # ====================
 
     async def _capture_mss(self, save_path: Path) -> str | None:
@@ -61,7 +66,8 @@ class ScreenshotService:
 
             await asyncio.to_thread(_run)
             return str(save_path) if save_path.exists() else None
-        except Exception:
+        except Exception as exc:
+            logger.warning("Screenshot backend mss failed: %s", exc, exc_info=True)
             return None
 
     async def _capture_pil(self, save_path: Path) -> str | None:
@@ -76,7 +82,12 @@ class ScreenshotService:
 
             await asyncio.to_thread(_run)
             return str(save_path) if save_path.exists() else None
-        except Exception:
+        except Exception as exc:
+            logger.warning(
+                "Screenshot backend PIL.ImageGrab failed: %s",
+                exc,
+                exc_info=True,
+            )
             return None
 
     async def _capture_pyautogui(self, save_path: Path) -> str | None:
@@ -91,11 +102,14 @@ class ScreenshotService:
 
             await asyncio.to_thread(_run)
             return str(save_path) if save_path.exists() else None
-        except Exception:
+        except Exception as exc:
+            logger.warning(
+                "Screenshot backend pyautogui failed: %s", exc, exc_info=True
+            )
             return None
 
-    async def _capture_system(self, save_path: Path) -> str | None:
-        """fallback（scrot / grim）"""
+    async def _capture_scrot(self, save_path: Path) -> str | None:
+        """scrot"""
 
         # X11
         try:
@@ -108,10 +122,13 @@ class ScreenshotService:
             await proc.wait()
             if save_path.exists():
                 return str(save_path)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Screenshot backend scrot failed: %s", exc, exc_info=True)
 
-        # Wayland
+        return None
+
+    async def _capture_grim(self, save_path: Path) -> str | None:
+        """grim"""
         try:
             proc = await asyncio.create_subprocess_exec(
                 "grim",
@@ -122,7 +139,7 @@ class ScreenshotService:
             await proc.wait()
             if save_path.exists():
                 return str(save_path)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Screenshot backend grim failed: %s", exc, exc_info=True)
 
         return None
